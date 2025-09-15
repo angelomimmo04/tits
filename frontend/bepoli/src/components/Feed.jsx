@@ -1,22 +1,11 @@
 import { useEffect, useState } from "react";
 import PostCard from "./PostCard";
-import MonitorButtons from "./MonitorButtons";
-import useGeolocation from "./hooks/useGeolocation";
 
-export default function Feed() {
+export default function Feed({ location }) {
     const [posts, setPosts] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [finished, setFinished] = useState(false);
     const [loading, setLoading] = useState(false);
-
-    // Stato combinato per filtro manuale e posizione GPS
-    const [currentLocationFilter, setCurrentLocationFilter] = useState("Fuori dalle aree conosciute");
-
-    // Hook geolocalizzazione
-    const { startTracking, stopTracking } = useGeolocation((zoneName) => {
-        setCurrentLocationFilter(zoneName);
-        console.log("Zona rilevata da GPS:", zoneName);
-    });
 
     const pageSize = 10;
 
@@ -26,23 +15,21 @@ export default function Feed() {
         setLoading(true);
 
         try {
-            // Pulizia della location per invio al backend
-            const location = encodeURIComponent(
-                currentLocationFilter.replace(/^Vicino a:\s*/, "").trim() || "Fuori dalle aree conosciute"
+            const locationParam = encodeURIComponent(
+                (location || "Fuori dalle aree conosciute").replace(/^Vicino a:\s*/, "").trim()
             );
 
-            console.log("Richiesta post per location:", location);
+            console.log("Richiesta post per location:", locationParam);
 
             const res = await fetch(
-                `/api/posts?page=${page}&pageSize=${pageSize}&location=${location}`,
+                `/api/posts?page=${page}&pageSize=${pageSize}&location=${locationParam}`,
                 { credentials: "include" }
             );
 
             if (!res.ok) throw new Error(`Errore ${res.status}`);
-
             const data = await res.json();
 
-            // Se è la prima pagina sostituisci i post, altrimenti aggiungi
+            // Se è la prima pagina sostituisci, altrimenti aggiungi
             setPosts(page === 1 ? data : [...posts, ...data]);
             setCurrentPage(page);
             setFinished(data.length < pageSize);
@@ -93,39 +80,29 @@ export default function Feed() {
         }
     };
 
-    // Carica post quando cambia la posizione o all'avvio
+    // Aggiorna il feed ogni volta che cambia la location
     useEffect(() => {
+        setFinished(false); // resetta stato "finito" quando cambia location
         caricaPost(1);
-    }, [currentLocationFilter]);
+    }, [location]);
 
     return (
-        <div>
-            {/* Bottoni monitoraggio + menu a tendina */}
-            <MonitorButtons
-                currentLocation={currentLocationFilter}
-                setCurrentLocation={setCurrentLocationFilter}
-                startTracking={startTracking}
-                stopTracking={stopTracking}
-            />
+        <main className="feed-container">
+            {posts.map((post, i) => (
+                <PostCard
+                    key={post._id}
+                    post={post}
+                    index={i}
+                    handleLike={handleLike}
+                    handleComment={handleComment}
+                />
+            ))}
 
-            {/* Feed */}
-            <main className="feed-container">
-                {posts.map((post, i) => (
-                    <PostCard
-                        key={post._id}
-                        post={post}
-                        index={i}
-                        handleLike={handleLike}
-                        handleComment={handleComment}
-                    />
-                ))}
-
-                {!finished && (
-                    <button onClick={() => caricaPost(currentPage + 1)} disabled={loading}>
-                        {loading ? "Caricamento..." : "Carica altri"}
-                    </button>
-                )}
-            </main>
-        </div>
+            {!finished && (
+                <button onClick={() => caricaPost(currentPage + 1)} disabled={loading}>
+                    {loading ? "Caricamento..." : "Carica altri"}
+                </button>
+            )}
+        </main>
     );
 }

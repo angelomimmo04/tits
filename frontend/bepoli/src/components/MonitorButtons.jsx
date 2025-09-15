@@ -1,11 +1,16 @@
 import React from "react";
 
-export default function MonitorButtons({ currentLocation, setCurrentLocation, startTracking, stopTracking }) {
-    // Gestione cambio selezione nel menu a tendina
+export default function MonitorButtons({
+                                           currentLocation,
+                                           setCurrentLocation,
+                                           startTracking,
+                                           stopTracking,
+                                       }) {
+    // Cambio manuale della zona dal menu
     const handleSelectChange = (e) => {
         const selectedZone = e.target.value || "Fuori dalle aree conosciute";
         setCurrentLocation(selectedZone);
-        console.log("Zona selezionata dal menu:", selectedZone); // log debug
+        console.log("Zona selezionata dal menu:", selectedZone);
     };
 
     return (
@@ -23,7 +28,11 @@ export default function MonitorButtons({ currentLocation, setCurrentLocation, st
                 <label htmlFor="locationSelect">Scegli posizione:</label>
                 <select
                     id="locationSelect"
-                    value={currentLocation === "Fuori dalle aree conosciute" ? "" : currentLocation}
+                    value={
+                        currentLocation === "Fuori dalle aree conosciute"
+                            ? ""
+                            : currentLocation
+                    }
                     onChange={handleSelectChange}
                 >
                     <option value="">Tutte le posizioni</option>
