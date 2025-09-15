@@ -12,12 +12,12 @@ export default function Login({ onLogin }) {
     // Recupera token CSRF dal server
     useEffect(() => {
         fetch(`${BACKEND_URL}/csrf-token`, { credentials: "include" })
-            .then((res) => res.json())
-            .then((data) => {
+            .then(res => res.json())
+            .then(data => {
                 console.log("CSRF ricevuto:", data.csrfToken);
                 setCsrfToken(data.csrfToken);
             })
-            .catch((err) => console.error("Errore CSRF:", err));
+            .catch(err => console.error("Errore CSRF:", err));
     }, []);
 
     const handleSubmit = async (e) => {
@@ -28,7 +28,7 @@ export default function Login({ onLogin }) {
                 credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
-                    "x-csrf-token": csrfToken, // <-- header corretto
+                    "x-csrf-token": csrfToken // <-- corretto
                 },
                 body: JSON.stringify({ username, password }),
             });
@@ -82,7 +82,7 @@ export default function Login({ onLogin }) {
 
         if (window.google) {
             window.google.accounts.id.initialize({
-                client_id: "42592859457-ausft7g5gohk7mf96st2047ul9rk8o0v.apps.googleusercontent.com",
+                client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
                 callback: window.handleCredentialResponse,
             });
             window.google.accounts.id.renderButton(
@@ -105,14 +105,14 @@ export default function Login({ onLogin }) {
                     placeholder="Username"
                     value={username}
                     required
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={e => setUsername(e.target.value)}
                 />
                 <input
                     type="password"
                     placeholder="Password"
                     value={password}
                     required
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={e => setPassword(e.target.value)}
                 />
                 <button type="submit">Login</button>
                 {error && <p style={{ color: "red" }}>{error}</p>}
