@@ -25,12 +25,24 @@ const upload = multer({ storage });
 const app = express();
 
 // --- Middleware ---
+const allowedOrigins = [
+    "http://localhost:5173",
+    "https://bepoli.onrender.com"
+];
+
 app.use(
     cors({
-        origin: "http://localhost:5173",
+        origin: function(origin, callback) {
+            if (!origin) return callback(null, true); // richieste senza origin (Postman, ecc.)
+            if (allowedOrigins.indexOf(origin) === -1) {
+                return callback(new Error(`CORS policy non permette l'origine ${origin}`), false);
+            }
+            return callback(null, true);
+        },
         credentials: true,
     })
 );
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
