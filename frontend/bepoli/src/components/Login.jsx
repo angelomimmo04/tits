@@ -7,6 +7,7 @@ export default function Login({ onLogin }) {
     const [error, setError] = useState("");
 
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+    console.log("BACKEND_URL:", BACKEND_URL); // controlla che stampi l'URL corretto
 
     // Recupera token CSRF dal server
     useEffect(() => {
