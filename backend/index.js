@@ -512,6 +512,19 @@ app.use((req, res, next) => {
 
 
 
+
+
+// Fallback SPA
+app.use((req, res, next) => {
+    // se la richiesta è per un file statico, passa oltre
+    if (req.path.startsWith('/api') || req.path.includes('.')) return next();
+
+    // altrimenti serve index.html
+    res.sendFile(path.join(distPath, 'index.html'));
+});
+
+
+
 // --- Avvio server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => console.log(`Server attivo su porta ${PORT}`));
