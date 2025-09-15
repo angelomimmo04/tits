@@ -6,7 +6,7 @@ export default function Login({ onLogin }) {
     const [csrfToken, setCsrfToken] = useState("");
     const [error, setError] = useState("");
 
-    const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
     // Recupera token CSRF dal server
     useEffect(() => {
