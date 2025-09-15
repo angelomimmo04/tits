@@ -7,7 +7,7 @@ export default function Login({ onLogin }) {
     const [error, setError] = useState("");
 
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-    console.log("BACKEND_URL:", BACKEND_URL); // controlla che stampi l'URL corretto
+    console.log("BACKEND_URL:", BACKEND_URL);
 
     // Recupera token CSRF dal server
     useEffect(() => {
@@ -28,7 +28,7 @@ export default function Login({ onLogin }) {
                 credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
-                    "csrf-token": csrfToken, // token inviato nell'header
+                    "x-csrf-token": csrfToken, // <-- header corretto
                 },
                 body: JSON.stringify({ username, password }),
             });
