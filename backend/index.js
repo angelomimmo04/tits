@@ -11,6 +11,9 @@ const cookieParser = require("cookie-parser");
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
 
+
+const distPath = path.join(__dirname, 'dist');
+
 const CLIENT_ID =
     process.env.GOOGLE_CLIENT_ID ||
     "42592859457-ausft7g5gohk7mf96st2047ul9rk8o0v.apps.googleusercontent.com";
@@ -485,8 +488,29 @@ app.get("/api/post-image/:id", async (req, res) => {
     }
 });
 
-// --- Serve SPA React ---
-app.use(express.static(path.join(__dirname, "public")));
+
+
+
+
+// Serve tutti i file statici nella cartella assets
+app.use('/assets', express.static(path.join(distPath, 'assets')));
+
+app.use(express.static(distPath));
+
+
+// API esempio
+app.get('/api/hello', (req, res) => {
+    res.json({ message: 'Hello World' });
+});
+
+// Fallback SPA per tutte le altre richieste
+app.use((req, res, next) => {
+    // Se la richiesta è per API o file statico, passa oltre
+    if (req.path.startsWith('/api') || req.path.includes('.')) return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+});
+
+
 
 // --- Avvio server ---
 const PORT = process.env.PORT || 3000;
