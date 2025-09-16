@@ -66,12 +66,13 @@ app.use(
 // CSRF con cookie
 const csrfProtection = csrf({ cookie: true });
 
+
 // Middleware per leggere CSRF token da header
 app.use((req, res, next) => {
-  const headerToken = req.headers["csrf-token"] || req.headers["x-csrf-token"];
-  if (headerToken) req.body._csrf = headerToken;
-  next();
+    if (req.headers["csrf-token"]) req.body._csrf = req.headers["csrf-token"];
+    next();
 });
+
 
 
 // --- Database ---
