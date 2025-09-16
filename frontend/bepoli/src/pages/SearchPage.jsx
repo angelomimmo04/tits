@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom"; // ✅ import di React Router
 
 export default function SearchPage() {
     const [utenteLoggato, setUtenteLoggato] = useState(null);
@@ -11,6 +12,7 @@ export default function SearchPage() {
     const timeoutRef = useRef(null);
 
     const limitePerPagina = 10;
+    const navigate = useNavigate(); // ✅ hook di React Router
 
     // Recupera utente loggato
     useEffect(() => {
@@ -59,27 +61,29 @@ export default function SearchPage() {
 
             if (!res.ok) {
                 setFineLista(true);
-                setRisultati([
-                    { id: "error", username: `Errore ${res.status}` },
-                ]);
+                setRisultati([{ id: "error", username: `Errore ${res.status}` }]);
                 return;
             }
 
             const data = await res.json();
-            let utenti = Array.isArray(data) ? data : Array.isArray(data.results) ? data.results : [];
+            let utenti = Array.isArray(data.results) ? data.results : [];
 
             // Filtra l'utente loggato
             if (utenteLoggato) {
-                utenti = utenti.filter((u) => u.id !== utenteLoggato._id && u.id !== utenteLoggato.id);
+                utenti = utenti.filter(
+                    (u) => u.id !== utenteLoggato._id && u.id !== utenteLoggato.id
+                );
             }
 
             if (page === 1) {
                 setRisultati(utenti);
-                setFineLista(utenti.length < limitePerPagina);
             } else {
                 setRisultati((prev) => [...prev, ...utenti]);
-                setFineLista(utenti.length < limitePerPagina);
             }
+
+            // calcola se siamo arrivati alla fine usando totalCount
+            setFineLista(page * limitePerPagina >= data.totalCount);
+
             setPaginaCorrente(page);
         } catch (err) {
             console.error(err);
@@ -102,13 +106,15 @@ export default function SearchPage() {
         }
     };
 
+    const apriProfilo = (user) => {
+        salvaInCronologia(user);
+        navigate(`/profile/${user.id || user._id}`); // ✅ naviga con React Router
+    };
+
     const renderUtente = (user) => (
         <div
             key={user.id || user._id}
-            onClick={() => {
-                salvaInCronologia(user);
-                window.location.href = `/profile.html?id=${user.id || user._id}`;
-            }}
+            onClick={() => apriProfilo(user)}
             style={{
                 display: "flex",
                 alignItems: "center",
@@ -125,14 +131,27 @@ export default function SearchPage() {
                 src={user.profilePicUrl || "fotoprofilo.png"}
                 onError={(e) => (e.target.src = "fotoprofilo.png")}
                 alt="avatar"
-                style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover", border: "2px solid #ccc" }}
+                style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    border: "2px solid #ccc",
+                }}
             />
             <strong>{user.username}</strong>
         </div>
     );
 
     return (
-        <div style={{ padding: 20, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", background: "#f7f9fc", color: "#333" }}>
+        <div
+            style={{
+                padding: 20,
+                fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                background: "#f7f9fc",
+                color: "#333",
+            }}
+        >
             <h2>Cerca Utente</h2>
             <input
                 type="text"
@@ -152,7 +171,12 @@ export default function SearchPage() {
 
             <div id="risultati">{risultati.map(renderUtente)}</div>
             {!fineLista && risultati.length > 0 && (
-                <button className="btn" onClick={handleLoadMore} disabled={loading} style={{ margin: "10px auto", display: "block" }}>
+                <button
+                    className="btn"
+                    onClick={handleLoadMore}
+                    disabled={loading}
+                    style={{ margin: "10px auto", display: "block" }}
+                >
                     {loading ? "Caricamento..." : "Carica altri"}
                 </button>
             )}

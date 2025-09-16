@@ -3,11 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 
 import Home from "./pages/Home";
 import Login from "./components/Login.jsx";
-import SearchPage from "./pages/SearchPage.jsx"; // percorso corretto
-
-
-
-
+import SearchPage from "./pages/SearchPage.jsx";
+import Profile from "./pages/ProfilePage.jsx";
+import ModificaProfilo from "./pages/ModificaProfilo.jsx"; // 👈 aggiunto
 
 import "./assets/style9.css";
 
@@ -41,14 +39,32 @@ export default function App() {
                     element={user ? <Home user={user} /> : <Navigate to="/login" />}
                 />
 
+                {/* Search */}
+                <Route path="/search" element={<SearchPage />} />
+
+                {/* Profilo */}
+                <Route
+                    path="/profile"
+                    element={user ? <Profile /> : <Navigate to="/login" />}
+                />
+
+                {/* Profilo pubblico con id */}
+                <Route
+                    path="/profile/:id"
+                    element={user ? <Profile /> : <Navigate to="/login" />}
+                />
+
+                {/* Modifica profilo */}
+                <Route
+                    path="/modificaprofilo"
+                    element={user ? <ModificaProfilo /> : <Navigate to="/login" />}
+                />
+
                 {/* Fallback */}
                 <Route
                     path="*"
                     element={<Navigate to={user ? "/" : "/login"} />}
                 />
-
-                <Route path="/search" element={<SearchPage />} />
-
             </Routes>
         </Router>
     );
