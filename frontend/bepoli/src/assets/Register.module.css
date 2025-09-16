@@ -1,0 +1,139 @@
+/* Fa sì che prenda tutto lo schermo */
+
+/* Contenitore principale */
+.registerPage {
+    min-height: 100vh;
+    width: 100vw;
+    background: linear-gradient(135deg, #004aad, #0077ff);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 20px 0;
+    box-sizing: border-box;
+}
+
+/* Form rimane centrato ma non con max-width ridotta */
+.form {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 30px 25px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    color: white;
+}
+
+/* Logo */
+.logo {
+    width: 120px;
+    margin: 20px auto;
+    display: block;
+    transition: transform 1.2s ease;
+}
+
+.logo-transition {
+    transform: scale(1.2);
+    opacity: 0;
+}
+
+.form h2 {
+    margin-bottom: 8px;
+    font-size: 26px;
+}
+
+.form h3 {
+    margin-bottom: 20px;
+    font-weight: 400;
+    font-size: 16px;
+    opacity: 0.85;
+}
+
+/* Inputs */
+.form input {
+    width: 100%;
+    margin: 8px 0;             /* margine uniforme sopra e sotto */
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    outline: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 14px;
+    transition: background 0.3s;
+    box-sizing: border-box;     /* assicura che padding non spinga i campi a destra */
+}
+
+.form input:focus {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Button */
+.form button {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #00c9a7, #00e0c6);
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.1s;
+}
+
+.form button:hover {
+    background: linear-gradient(135deg, #00e0c6, #00c9a7);
+}
+
+.form button:active {
+    transform: scale(0.98);
+}
+
+.form button:disabled {
+    background: gray;
+    cursor: not-allowed;
+}
+
+/* Error */
+.error {
+    color: #ff6b6b;
+    margin-top: 10px;
+}
+
+/* Link “Sei iscritto? Accedi” su un solo rigo */
+.loginLink {
+    margin-top: 15px;
+    font-size: 14px;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+
+}
+
+.loginLink span {
+    color: white;
+}
+
+.loginLink a {
+    color: #00e0c6;
+    font-weight: bold;
+    text-decoration: none;
+    margin-top: 15px;
+}
+
+.loginLink a:hover {
+    text-decoration: underline;
+}
+
+/* Google Sign In Button wrapper */
+.googleWrapper {
+    margin-top: 6px;
+}
+
+span {
+    color: black;
+    margin-top: 15px;
+    display: block;
+}

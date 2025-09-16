@@ -1,0 +1,17 @@
+.homeWrapper {
+    width: 100%;        /* tutta la larghezza dello schermo */
+    min-height: 100vh;  /* altezza piena */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+    background-color: #f2f2f2;
+}
+
+.createPostSection,
+.feedContainer {
+    width: 100%;        /* piena larghezza disponibile */
+    max-width: 900px;   /* limite per contenuti troppo lunghi */
+    margin: 10px 0;     /* margine verticale */
+}

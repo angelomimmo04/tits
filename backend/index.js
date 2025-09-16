@@ -11,7 +11,7 @@ const cookieParser = require("cookie-parser");
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
 
-const distPath = path.join(__dirname, 'dist');
+const distPath = path.join(__dirname, "dist");
 
 const CLIENT_ID =
     process.env.GOOGLE_CLIENT_ID ||
@@ -28,44 +28,53 @@ const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "https://be-poli-pxil.onrender.com",
-    "https://bepoli.onrender.com"
+    "https://bepoli.onrender.com",
 ];
 
-app.use(cors({
-    origin: function(origin, callback) {
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) return callback(new Error(`CORS policy non permette l'origine ${origin}`), false);
-        return callback(null, true);
-    },
-    credentials: true,
-}));
+app.use(
+    cors({
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+            if (allowedOrigins.indexOf(origin) === -1)
+                return callback(
+                    new Error(`CORS policy non permette l'origine ${origin}`),
+                    false
+                );
+            return callback(null, true);
+        },
+        credentials: true,
+    })
+);
 
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(session({
-    secret: process.env.SESSION_SECRET || "dev-secret",
-    resave: false,
-    saveUninitialized: true,
-    rolling: true,
-    cookie: {
-        maxAge: 1000 * 60 * 30,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-    },
-}));
+app.use(
+    session({
+        secret: process.env.SESSION_SECRET || "dev-secret",
+        resave: false,
+        saveUninitialized: true,
+        rolling: true,
+        cookie: {
+            maxAge: 1000 * 60 * 30,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+        },
+    })
+);
 
-const csrfProtection = csrf({ cookie: true });
-app.use((req, res, next) => {
-    if (req.headers["csrf-token"]) req.body._csrf = req.headers["csrf-token"];
-    next();
+// --- CSRF Protection ---
+const csrfProtection = csrf({
+    cookie: true,
+    value: (req) => req.headers["csrf-token"], // 👈 legge dall’header
 });
 
 // --- Database ---
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+    .connect(process.env.MONGO_URI)
     .then(() => console.log("Connesso a MongoDB"))
-    .catch(err => console.error("Connessione fallita:", err));
+    .catch((err) => console.error("Connessione fallita:", err));
 
 // --- Schemi ---
 const utenteSchema = new mongoose.Schema({
@@ -98,18 +107,14 @@ const postSchema = new mongoose.Schema({
 });
 const Post = mongoose.model("Post", postSchema);
 
-// --- Funzioni ---
-function checkSession(req, res, next) {
-    if (!req.session.user) return res.status(401).json({ message: "Non autorizzato" });
-    next();
-}
-
+// --- Utils ---
 function getFingerprint(req) {
     return req.headers["user-agent"] || "";
 }
 
 function checkFingerprint(req, res, next) {
-    if (!req.session.user) return res.status(401).json({ message: "Non autorizzato" });
+    if (!req.session.user)
+        return res.status(401).json({ message: "Non autorizzato" });
     const currentFp = getFingerprint(req);
     const savedFp = req.session.fingerprint;
 
@@ -119,9 +124,11 @@ function checkFingerprint(req, res, next) {
     }
 
     if (savedFp !== currentFp) {
-        req.session.destroy(err => {
+        req.session.destroy((err) => {
             if (err) console.error("Errore distruggendo sessione:", err);
-            return res.status(403).json({ message: "Sessione invalida, login richiesto." });
+            return res
+                .status(403)
+                .json({ message: "Sessione invalida, login richiesto." });
         });
     } else {
         next();
@@ -129,34 +136,51 @@ function checkFingerprint(req, res, next) {
 }
 
 // --- Rotte Auth ---
-app.get("/csrf-token", csrfProtection, (req, res) => res.json({ csrfToken: req.csrfToken() }));
+app.get("/csrf-token", csrfProtection, (req, res) =>
+    res.json({ csrfToken: req.csrfToken() })
+);
 
 app.post("/register", csrfProtection, async (req, res) => {
     const { nome, username, password } = req.body;
-    if (!nome || !username || !password) return res.status(400).json({ message: "Dati mancanti" });
+    if (!nome || !username || !password)
+        return res.status(400).json({ message: "Dati mancanti" });
 
     try {
-        if (await Utente.findOne({ username })) return res.status(400).json({ message: "Username già esistente" });
+        if (await Utente.findOne({ username }))
+            return res.status(400).json({ message: "Username già esistente" });
 
         const hash = await bcrypt.hash(password, 10);
-        const nuovoUtente = new Utente({ nome, username, password: hash, bio: "", profilePic: { data: null, contentType: null } });
+        const nuovoUtente = new Utente({
+            nome,
+            username,
+            password: hash,
+            bio: "",
+            profilePic: { data: null, contentType: null },
+        });
         await nuovoUtente.save();
         res.status(201).json({ message: "Registrazione completata" });
-    } catch (err) {
+    } catch {
         res.status(500).json({ message: "Errore server" });
     }
 });
 
 app.post("/login", csrfProtection, async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ message: "Dati mancanti" });
+    if (!username || !password)
+        return res.status(400).json({ message: "Dati mancanti" });
 
     try {
         const utente = await Utente.findOne({ username });
         if (!utente || !(await bcrypt.compare(password, utente.password)))
-            return res.status(400).json({ message: "Username o password errati" });
+            return res
+                .status(400)
+                .json({ message: "Username o password errati" });
 
-        req.session.user = { id: utente._id, nome: utente.nome, username: utente.username };
+        req.session.user = {
+            id: utente._id,
+            nome: utente.nome,
+            username: utente.username,
+        };
         req.session.fingerprint = getFingerprint(req);
         res.json({ message: "Login riuscito", user: req.session.user });
     } catch {
@@ -166,19 +190,33 @@ app.post("/login", csrfProtection, async (req, res) => {
 
 app.post("/auth/google", async (req, res) => {
     const { id_token } = req.body;
-    if (!id_token) return res.status(400).json({ message: "Token mancante" });
+    if (!id_token)
+        return res.status(400).json({ message: "Token mancante" });
 
     try {
-        const ticket = await client.verifyIdToken({ idToken: id_token, audience: CLIENT_ID });
+        const ticket = await client.verifyIdToken({
+            idToken: id_token,
+            audience: CLIENT_ID,
+        });
         const payload = ticket.getPayload();
 
         let utente = await Utente.findOne({ username: payload.email });
         if (!utente) {
-            utente = new Utente({ nome: payload.name, username: payload.email, password: "", bio: "", profilePic: { data: null, contentType: null } });
+            utente = new Utente({
+                nome: payload.name,
+                username: payload.email,
+                password: "",
+                bio: "",
+                profilePic: { data: null, contentType: null },
+            });
             await utente.save();
         }
 
-        req.session.user = { id: utente._id, nome: utente.nome, username: utente.username };
+        req.session.user = {
+            id: utente._id,
+            nome: utente.nome,
+            username: utente.username,
+        };
         req.session.fingerprint = getFingerprint(req);
 
         res.json({ message: "Login Google effettuato", user: req.session.user });
@@ -188,7 +226,7 @@ app.post("/auth/google", async (req, res) => {
 });
 
 app.post("/logout", checkFingerprint, csrfProtection, (req, res) => {
-    req.session.destroy(err => {
+    req.session.destroy((err) => {
         if (err) return res.status(500).json({ message: "Errore logout" });
         res.clearCookie("connect.sid");
         res.json({ message: "Logout effettuato" });
@@ -196,36 +234,111 @@ app.post("/logout", checkFingerprint, csrfProtection, (req, res) => {
 });
 
 app.get("/api/auth-token", checkFingerprint, (req, res) => {
-    const payload = { id: req.session.user.id, username: req.session.user.username, nome: req.session.user.nome };
-    const token = jwt.sign(payload, process.env.JWT_SECRET || "dev-jwt-secret", { expiresIn: "15m" });
+    const payload = {
+        id: req.session.user.id,
+        username: req.session.user.username,
+        nome: req.session.user.nome,
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET || "dev-jwt-secret", {
+        expiresIn: "15m",
+    });
     res.json({ token });
 });
 
-// --- Rotte Utente ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// --- Utenti ---
 app.get("/api/user", checkFingerprint, async (req, res) => {
     try {
-        const user = await Utente.findById(req.session.user.id).select("username nome bio followers following");
+        const user = await Utente.findById(req.session.user.id).select(
+            "username nome bio followers following"
+        );
         if (!user) return res.status(404).json({ message: "Utente non trovato" });
 
-        res.json({ _id: user._id, username: user.username, nome: user.nome, bio: user.bio, followersCount: user.followers.length, followingCount: user.following.length });
-    } catch { res.status(500).json({ message: "Errore server" }); }
-});
-
-app.post("/api/update-profile", checkFingerprint, csrfProtection, upload.single("profilePic"), async (req, res) => {
-    const userId = req.session.user.id;
-    const updateData = {};
-    if (req.body.bio) updateData.bio = req.body.bio;
-    if (req.file) updateData.profilePic = { data: req.file.buffer, contentType: req.file.mimetype };
-
-    try {
-        const updated = await Utente.findByIdAndUpdate(userId, { $set: updateData }, { new: true });
-        if (!updated) return res.status(404).json({ message: "Utente non trovato" });
-
-        res.json({ message: "Profilo aggiornato" });
+        res.json({
+            _id: user._id,
+            username: user.username,
+            nome: user.nome,
+            bio: user.bio,
+            followersCount: user.followers.length,
+            followingCount: user.following.length,
+        });
     } catch {
-        res.status(500).json({ message: "Errore salvataggio profilo" });
+        res.status(500).json({ message: "Errore server" });
     }
 });
+
+app.post(
+    "/api/update-profile",
+    checkFingerprint,
+    csrfProtection,
+    upload.single("profilePic"),
+    async (req, res) => {
+        const userId = req.session.user?.id;
+        if (!userId)
+            return res.status(401).json({ message: "Non autorizzato" });
+
+        const updateData = {};
+        if (req.body.bio) updateData.bio = req.body.bio;
+        if (req.file)
+            updateData.profilePic = {
+                data: req.file.buffer,
+                contentType: req.file.mimetype,
+            };
+
+        try {
+            const updated = await Utente.findByIdAndUpdate(
+                userId,
+                { $set: updateData },
+                { new: true }
+            );
+            if (!updated)
+                return res.status(404).json({ message: "Utente non trovato" });
+
+            res.json({
+                message: "Profilo aggiornato",
+                user: {
+                    _id: updated._id,
+                    nome: updated.nome,
+                    username: updated.username,
+                    bio: updated.bio,
+                },
+            });
+        } catch (err) {
+            console.error("Errore aggiornamento profilo:", err);
+            res.status(500).json({ message: "Errore salvataggio profilo" });
+        }
+    }
+);
 
 app.get("/api/user-photo/:userId", async (req, res) => {
     try {
@@ -239,15 +352,16 @@ app.get("/api/user-photo/:userId", async (req, res) => {
     }
 });
 
-// --- Recent Users ---
 app.get("/api/recent-users", checkFingerprint, async (req, res) => {
     try {
-        const utente = await Utente.findById(req.session.user.id).populate("utentiRecenti", "username nome _id").exec();
-        const recenti = utente.utentiRecenti.map(u => ({
+        const utente = await Utente.findById(req.session.user.id)
+            .populate("utentiRecenti", "username nome _id")
+            .exec();
+        const recenti = utente.utentiRecenti.map((u) => ({
             id: u._id,
             username: u.username,
             nome: u.nome,
-            profilePicUrl: `/api/user-photo/${u._id}`
+            profilePicUrl: `/api/user-photo/${u._id}`,
         }));
         res.json(recenti);
     } catch {
@@ -255,7 +369,6 @@ app.get("/api/recent-users", checkFingerprint, async (req, res) => {
     }
 });
 
-// --- Search Users ---
 app.get("/api/search-users", checkFingerprint, async (req, res) => {
     const query = req.query.q;
     const page = parseInt(req.query.page) || 1;
@@ -265,34 +378,161 @@ app.get("/api/search-users", checkFingerprint, async (req, res) => {
     if (!query) return res.status(400).json({ message: "Query mancante" });
 
     try {
-        const totalCount = await Utente.countDocuments({ username: new RegExp(query, "i") });
-        const results = await Utente.find({ username: new RegExp(query, "i") }, "username nome _id").skip(skip).limit(limit);
+        const totalCount = await Utente.countDocuments({
+            username: new RegExp(query, "i"),
+        });
+        const results = await Utente.find(
+            { username: new RegExp(query, "i") },
+            "username nome _id"
+        )
+            .skip(skip)
+            .limit(limit);
 
         res.json({
-            results: results.map(u => ({
+            results: results.map((u) => ({
                 id: u._id,
                 username: u.username,
                 nome: u.nome,
-                profilePicUrl: `/api/user-photo/${u._id}`
+                profilePicUrl: `/api/user-photo/${u._id}`,
             })),
-            totalCount
+            totalCount,
         });
     } catch {
         res.status(500).json({ message: "Errore ricerca" });
     }
 });
 
-// --- Visit User ---
+
+
+
+
+
+// Lista follower
+app.get("/api/user/:id/followers", checkFingerprint, async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    try {
+        const user = await Utente.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: "Utente non trovato" });
+
+        const followersList = await Utente.find({ _id: { $in: user.followers } })
+            .select("nome username _id")
+            .skip(skip)
+            .limit(limit);
+
+        res.json({
+            total: user.followers.length,
+            page,
+            limit,
+            followers: followersList.map(u => ({
+                id: u._id,
+                nome: u.nome,
+                username: u.username,
+                profilePicUrl: `/api/user-photo/${u._id}`
+            }))
+        });
+    } catch (err) {
+        console.error("Errore nel recupero follower:", err);
+        res.status(500).json({ message: "Errore server" });
+    }
+});
+
+// Lista seguiti
+app.get("/api/user/:id/following", checkFingerprint, async (req, res) => {
+    //app.get("/api/user/:id/following", async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    try {
+        const user = await Utente.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: "Utente non trovato" });
+
+        const followingList = await Utente.find({ _id: { $in: user.following } })
+            .select("nome username _id")
+            .skip(skip)
+            .limit(limit);
+
+        res.json({
+            total: user.following.length,
+            page,
+            limit,
+            following: followingList.map(u => ({
+                id: u._id,
+                nome: u.nome,
+                username: u.username,
+                profilePicUrl: `/api/user-photo/${u._id}`
+            }))
+        });
+    } catch (err) {
+        console.error("Errore nel recupero following:", err);
+        res.status(500).json({ message: "Errore server" });
+    }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Dati pubblici di un utente specifico
+app.get("/api/user/:id", checkFingerprint, async (req, res) => {
+    try {
+        const user = await Utente.findById(req.params.id).select(
+            "username nome bio followers following"
+        );
+        if (!user) return res.status(404).json({ message: "Utente non trovato" });
+
+        res.json({
+            _id: user._id,
+            username: user.username,
+            nome: user.nome,
+            bio: user.bio,
+            followersCount: user.followers.length,
+            followingCount: user.following.length,
+        });
+    } catch {
+        res.status(500).json({ message: "Errore server" });
+    }
+});
+
+
+
+
+
 app.post("/api/visit-user/:id", checkFingerprint, async (req, res) => {
     const userId = req.session.user.id;
     const visitedId = req.params.id;
-    if (userId === visitedId) return res.status(400).json({ message: "Non puoi visitare te stesso" });
+    if (userId === visitedId)
+        return res.status(400).json({ message: "Non puoi visitare te stesso" });
 
     try {
         const utente = await Utente.findById(userId);
         if (!utente) return res.status(404).json({ message: "Utente non trovato" });
 
-        utente.utentiRecenti = utente.utentiRecenti.filter(id => id.toString() !== visitedId);
+        utente.utentiRecenti = utente.utentiRecenti.filter(
+            (id) => id.toString() !== visitedId
+        );
         utente.utentiRecenti.unshift(visitedId);
         utente.utentiRecenti = utente.utentiRecenti.slice(0, 5);
 
@@ -303,15 +543,20 @@ app.post("/api/visit-user/:id", checkFingerprint, async (req, res) => {
     }
 });
 
-// --- Follow / Unfollow ---
+// --- Follow ---
 app.post("/api/follow/:id", checkFingerprint, async (req, res) => {
     const followerId = req.session.user.id;
     const targetId = req.params.id;
-    if (followerId === targetId) return res.status(400).json({ message: "Non puoi seguire te stesso" });
+    if (followerId === targetId)
+        return res.status(400).json({ message: "Non puoi seguire te stesso" });
 
     try {
-        const [follower, target] = await Promise.all([Utente.findById(followerId), Utente.findById(targetId)]);
-        if (!follower || !target) return res.status(404).json({ message: "Utente non trovato" });
+        const [follower, target] = await Promise.all([
+            Utente.findById(followerId),
+            Utente.findById(targetId),
+        ]);
+        if (!follower || !target)
+            return res.status(404).json({ message: "Utente non trovato" });
 
         const isFollowing = follower.following.includes(target._id);
         if (isFollowing) {
@@ -323,7 +568,11 @@ app.post("/api/follow/:id", checkFingerprint, async (req, res) => {
         }
 
         await Promise.all([follower.save(), target.save()]);
-        res.json({ following: !isFollowing, followersCount: target.followers.length, followingCount: follower.following.length });
+        res.json({
+            following: !isFollowing,
+            followersCount: target.followers.length,
+            followingCount: follower.following.length,
+        });
     } catch {
         res.status(500).json({ message: "Errore follow" });
     }
@@ -334,11 +583,19 @@ app.get("/api/follow-info/:id", checkFingerprint, async (req, res) => {
     const targetId = req.params.id;
 
     try {
-        const [viewer, target] = await Promise.all([Utente.findById(viewerId), Utente.findById(targetId)]);
-        if (!viewer || !target) return res.status(404).json({ message: "Utente non trovato" });
+        const [viewer, target] = await Promise.all([
+            Utente.findById(viewerId),
+            Utente.findById(targetId),
+        ]);
+        if (!viewer || !target)
+            return res.status(404).json({ message: "Utente non trovato" });
 
         const isFollowing = viewer.following.includes(target._id);
-        res.json({ followersCount: target.followers.length, followingCount: target.following.length, isFollowing });
+        res.json({
+            followersCount: target.followers.length,
+            followingCount: target.following.length,
+            isFollowing,
+        });
     } catch {
         res.status(500).json({ message: "Errore follow-info" });
     }
@@ -354,7 +611,9 @@ app.post("/api/posts", checkFingerprint, upload.single("image"), async (req, res
             desc: req.body.desc,
             location,
             createdAt: new Date(),
-            image: req.file ? { data: req.file.buffer, contentType: req.file.mimetype } : null,
+            image: req.file
+                ? { data: req.file.buffer, contentType: req.file.mimetype }
+                : null,
         });
         await newPost.save();
         res.status(201).json(newPost);
@@ -371,7 +630,10 @@ app.get("/api/posts", async (req, res) => {
     try {
         const query = {};
         if (locationFilter && locationFilter !== "Fuori dalle aree conosciute") {
-            query.location = { $regex: `(^${locationFilter}$|^Vicino a: ${locationFilter}$)`, $options: "i" };
+            query.location = {
+                $regex: `(^${locationFilter}$|^Vicino a: ${locationFilter}$)`,
+                $options: "i",
+            };
         }
 
         const posts = await Post.find(query)
@@ -381,16 +643,22 @@ app.get("/api/posts", async (req, res) => {
             .populate("userId", "username nome _id")
             .populate("comments.userId", "username nome _id");
 
-        res.json(posts.map(post => ({
-            _id: post._id,
-            userId: { _id: post.userId._id, username: post.userId.username, nome: post.userId.nome },
-            desc: post.desc,
-            location: post.location,
-            createdAt: post.createdAt,
-            imageUrl: post.image?.data ? `/api/post-image/${post._id}` : null,
-            likes: post.likes.length,
-            comments: post.comments.length,
-        })));
+        res.json(
+            posts.map((post) => ({
+                _id: post._id,
+                userId: {
+                    _id: post.userId._id,
+                    username: post.userId.username,
+                    nome: post.userId.nome,
+                },
+                desc: post.desc,
+                location: post.location,
+                createdAt: post.createdAt,
+                imageUrl: post.image?.data ? `/api/post-image/${post._id}` : null,
+                likes: post.likes.length,
+                comments: post.comments.length,
+            }))
+        );
     } catch {
         res.status(500).json({ message: "Errore caricamento post" });
     }
@@ -418,19 +686,19 @@ app.get("/api/user/:id/posts", async (req, res) => {
             .sort({ createdAt: -1 })
             .skip((page - 1) * pageSize)
             .limit(pageSize)
-            .populate("userId", "username nome _id")
-            .populate("comments.userId", "username nome _id");
+            .populate("userId", "username nome _id");
 
-        res.json(posts.map(post => ({
-            _id: post._id,
-            userId: { _id: post.userId._id, username: post.userId.username, nome: post.userId.nome },
-            desc: post.desc,
-            location: post.location,
-            createdAt: post.createdAt,
-            imageUrl: post.image?.data ? `/api/post-image/${post._id}` : null,
-            likes: post.likes.length,
-            comments: post.comments.length,
-        })));
+        res.json(
+            posts.map((post) => ({
+                _id: post._id,
+                desc: post.desc,
+                location: post.location,
+                createdAt: post.createdAt,
+                imageUrl: post.image?.data ? `/api/post-image/${post._id}` : null,
+                likes: post.likes.length,
+                comments: post.comments.length,
+            }))
+        );
     } catch {
         res.status(500).json({ message: "Errore caricamento post utente" });
     }
@@ -443,26 +711,6 @@ app.get("/api/user/:id/posts", async (req, res) => {
 
 
 
-// --- Utente pubblico ---
-app.get("/api/user-public/:id", async (req, res) => {
-    try {
-        const user = await Utente.findById(req.params.id).select(
-            "username nome bio followers following"
-        );
-        if (!user) return res.status(404).json({ message: "Utente non trovato" });
-
-        res.json({
-            _id: user._id,
-            username: user.username,
-            nome: user.nome,
-            bio: user.bio,
-            followersCount: user.followers.length,
-            followingCount: user.following.length,
-        });
-    } catch {
-        res.status(500).json({ message: "Errore server" });
-    }
-});
 
 
 
@@ -474,78 +722,25 @@ app.get("/api/user-public/:id", async (req, res) => {
 
 
 
-app.get("/api/user", checkFingerprint, async (req, res) => {
-    try {
-        const user = await Utente.findById(req.session.user.id).select("username nome bio followers following");
-        if (!user) return res.status(404).json({ message: "Utente non trovato" });
 
-        res.json({
-            _id: user._id,
-            username: user.username,
-            nome: user.nome,
-            bio: user.bio,
-            followersCount: user.followers.length,
-            followingCount: user.following.length
-        });
-    } catch {
-        res.status(500).json({ message: "Errore server" });
-    }
-});
 
-app.post(
-    "/api/update-profile",
-    checkFingerprint,
-    upload.single("profilePic"), // multer prima di csrf
-    async (req, res) => {
-        const userId = req.session.user?.id;
-        if (!userId) return res.status(401).json({ message: "Non autorizzato" });
 
-        const updateData = {};
-        if (req.body.bio) updateData.bio = req.body.bio;
-        if (req.file) updateData.profilePic = { data: req.file.buffer, contentType: req.file.mimetype };
 
-        try {
-            const updated = await Utente.findByIdAndUpdate(userId, { $set: updateData }, { new: true });
-            if (!updated) return res.status(404).json({ message: "Utente non trovato" });
 
-            res.json({
-                message: "Profilo aggiornato",
-                user: {
-                    _id: updated._id,
-                    nome: updated.nome,
-                    username: updated.username,
-                    bio: updated.bio
-                }
-            });
-        } catch (err) {
-            console.error("Errore aggiornamento profilo:", err);
-            res.status(500).json({ message: "Errore salvataggio profilo" });
-        }
-    }
-);
-
-app.get("/api/user-photo/:userId", async (req, res) => {
-    try {
-        const user = await Utente.findById(req.params.userId);
-        if (!user?.profilePic?.data) return res.status(404).send("Nessuna foto");
-
-        res.contentType(user.profilePic.contentType);
-        res.send(user.profilePic.data);
-    } catch {
-        res.status(500).send("Errore immagine utente");
-    }
-});
-
-// --- Static SPA & Assets ---
-app.use('/assets', express.static(path.join(distPath, 'assets')));
+// --- SPA & Assets ---
+app.use("/assets", express.static(path.join(distPath, "assets")));
 app.use(express.static(distPath));
 
-app.get('/api/hello', (req, res) => res.json({ message: 'Hello World' }));
+app.get("/api/hello", (req, res) => res.json({ message: "Hello World" }));
 
 app.use((req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.includes('.')) return next();
-    res.sendFile(path.join(distPath, 'index.html'));
+    if (req.path.startsWith("/api") || req.path.includes("."))
+        return next();
+    res.sendFile(path.join(distPath, "index.html"));
 });
-// --- Avvio server ---
+
+// --- Server ---
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => console.log(`Server attivo su porta ${PORT}`));
+app.listen(PORT, "0.0.0.0", () =>
+    console.log(`Server attivo su porta ${PORT}`)
+);

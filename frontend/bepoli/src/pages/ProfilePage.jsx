@@ -6,31 +6,33 @@ export default function ProfilePage() {
     const [isOwnProfile, setIsOwnProfile] = useState(false);
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
+
     const [modalOpen, setModalOpen] = useState(false);
     const [modalType, setModalType] = useState("followers");
     const [modalUsers, setModalUsers] = useState([]);
     const [modalPage, setModalPage] = useState(1);
     const [modalHasMore, setModalHasMore] = useState(true);
+    const [modalLoading, setModalLoading] = useState(false);
 
     const { id } = useParams();
     const navigate = useNavigate();
 
-    // Carica dati utente
+    // -------------------- Carica dati utente --------------------
     useEffect(() => {
         async function loadUser() {
             try {
                 let res;
                 if (id) {
-                    res = await fetch(`/api/user-public/${id}`, { credentials: "include" });
+                    res = await fetch(`/api/user/${id}`, { credentials: "include" });
                     setIsOwnProfile(false);
                 } else {
                     res = await fetch("/api/user", { credentials: "include" });
                     setIsOwnProfile(true);
                 }
+
                 if (!res.ok) throw new Error("Utente non trovato");
                 const data = await res.json();
 
-                // se non è il proprio profilo, chiedo anche follow-info
                 if (id) {
                     try {
                         const followRes = await fetch(`/api/follow-info/${data._id}`, {
@@ -49,12 +51,14 @@ export default function ProfilePage() {
                 navigate("/login");
             }
         }
+
         loadUser();
     }, [id, navigate]);
 
-    // Carica post utente
+    // -------------------- Carica post utente --------------------
     useEffect(() => {
         if (!user) return;
+
         async function loadPosts() {
             try {
                 const userId = user._id;
@@ -74,10 +78,11 @@ export default function ProfilePage() {
                 setLoading(false);
             }
         }
+
         loadPosts();
     }, [user]);
 
-    // Follow/unfollow
+    // -------------------- Follow/Unfollow --------------------
     const handleFollowToggle = async () => {
         if (!user) return;
         try {
@@ -101,34 +106,49 @@ export default function ProfilePage() {
         }
     };
 
-    // Apri modale followers/following
-    const openModal = async (type) => {
+    // -------------------- Apri modale followers/following --------------------
+    const openModal = (type) => {
         setModalType(type);
         setModalUsers([]);
         setModalPage(1);
         setModalHasMore(true);
+        setModalLoading(true);
         setModalOpen(true);
-        await loadMoreUsers(type, 1);
+
+        // Carica subito la prima pagina
+        loadMoreUsers(type, 1, true);
     };
 
-    // Carica utenti nella modale
-    const loadMoreUsers = async (type = modalType, page = modalPage) => {
-        if (!user || !modalHasMore) return;
+    // -------------------- Carica utenti nella modale --------------------
+    const loadMoreUsers = async (type = modalType, page = modalPage, reset = false) => {
+        if (!user || (!modalHasMore && !reset)) return;
+
+        setModalLoading(true);
         const userId = user._id;
         const endpoint =
             type === "followers"
                 ? `/api/user/${userId}/followers?page=${page}&limit=9`
                 : `/api/user/${userId}/following?page=${page}&limit=9`;
+
         try {
             const res = await fetch(endpoint, { credentials: "include" });
-            if (!res.ok) return;
+            if (!res.ok) {
+                console.error("Errore caricamento utenti:", res.status);
+                setModalHasMore(false);
+                return;
+            }
+
             const data = await res.json();
-            const users = type === "followers" ? data.followers : data.following;
-            setModalUsers((prev) => [...prev, ...users]);
+            const newUsers = type === "followers" ? data.followers || [] : data.following || [];
+
+            setModalUsers((prev) => (reset ? newUsers : [...prev, ...newUsers]));
             setModalPage(page + 1);
-            setModalHasMore(users.length >= 9);
+            setModalHasMore(newUsers.length >= 9);
         } catch (err) {
             console.error("Errore caricamento utenti modale", err);
+            setModalHasMore(false);
+        } finally {
+            setModalLoading(false);
         }
     };
 
@@ -147,6 +167,7 @@ export default function ProfilePage() {
 
     return (
         <div style={{ padding: 20, fontFamily: "sans-serif" }}>
+            {/* Header */}
             <header>
                 <img
                     src="/logobepoli.png"
@@ -157,6 +178,7 @@ export default function ProfilePage() {
                 />
             </header>
 
+            {/* Info utente */}
             <div id="info" style={{ display: "flex", gap: 20, alignItems: "center" }}>
                 <img
                     src={`/api/user-photo/${userId}`}
@@ -170,12 +192,12 @@ export default function ProfilePage() {
                     <p>{user.bio || "Nessuna bio"}</p>
 
                     <div style={{ display: "flex", gap: 15, marginTop: 10 }}>
-                        <span style={{ cursor: "pointer" }} onClick={() => openModal("followers")}>
-                            Follower: {user.followersCount || 0}
-                        </span>
+            <span style={{ cursor: "pointer" }} onClick={() => openModal("followers")}>
+              Follower: {user.followersCount || 0}
+            </span>
                         <span style={{ cursor: "pointer" }} onClick={() => openModal("following")}>
-                            Seguiti: {user.followingCount || 0}
-                        </span>
+              Seguiti: {user.followingCount || 0}
+            </span>
                         <span>Post: {posts.length}</span>
                     </div>
 
@@ -193,6 +215,7 @@ export default function ProfilePage() {
 
             <hr />
 
+            {/* Post utente */}
             <h3>{isOwnProfile ? "I tuoi post" : "Post"}</h3>
             {loading ? (
                 <p>Caricamento post...</p>
@@ -232,7 +255,7 @@ export default function ProfilePage() {
                 </div>
             )}
 
-            {/* MODALE */}
+            {/* Modale Followers/Following */}
             {modalOpen && (
                 <div
                     style={{
@@ -257,10 +280,14 @@ export default function ProfilePage() {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2>{modalType === "followers" ? "Follower" : "Seguiti"}</h2>
+
+                        {modalLoading && <p>Caricamento utenti...</p>}
+                        {!modalLoading && modalUsers.length === 0 && <p>Nessun utente da mostrare</p>}
+
                         <ul style={{ listStyle: "none", padding: 0 }}>
                             {modalUsers.map((u) => (
                                 <li
-                                    key={u._id || u.id}
+                                    key={u.id || u._id}
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
@@ -271,16 +298,17 @@ export default function ProfilePage() {
                                     onClick={() => apriProfiloUtente(u)}
                                 >
                                     <img
-                                        src={`/api/user-photo/${u._id || u.id}`}
+                                        src={u.profilePicUrl || `/api/user-photo/${u.id || u._id}`}
                                         alt="Foto profilo"
                                         style={{ width: 32, height: 32, borderRadius: "50%" }}
                                         onError={(e) => (e.target.src = "/fotoprofilo.png")}
                                     />
-                                    <span>@{u.username}</span>
+                                    <span>@{u.username} ({u.nome})</span>
                                 </li>
                             ))}
                         </ul>
-                        {modalHasMore && (
+
+                        {modalHasMore && !modalLoading && (
                             <button className="btn" onClick={() => loadMoreUsers()}>
                                 Carica altri
                             </button>

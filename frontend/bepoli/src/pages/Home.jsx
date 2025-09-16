@@ -4,6 +4,7 @@ import MonitorButtons from "../components/MonitorButtons";
 import CreatePostForm from "../components/CreatePostForm";
 import Feed from "../components/Feed";
 import useGeolocation from "../components/hooks/useGeolocation";
+import styles from "../assets/Home.module.css";
 
 export default function Home({ user }) {
     // Stato GPS e manuale separati
@@ -28,7 +29,8 @@ export default function Home({ user }) {
     const currentLocation = manualZone || gpsZone;
 
     return (
-        <div>
+
+            <div className={styles.homeWrapper}>
             <Header
                 coords={coords}
                 accuracy={accuracy}
@@ -45,6 +47,7 @@ export default function Home({ user }) {
 
             <CreatePostForm user={user} />
             <Feed key={currentLocation} location={currentLocation} />
-        </div>
+                </div>
+
     );
 }

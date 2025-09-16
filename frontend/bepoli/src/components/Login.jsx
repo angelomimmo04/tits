@@ -1,25 +1,66 @@
 import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+
+import styles from "../assets/Login.module.css";
 
 export default function Login({ onLogin }) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [csrfToken, setCsrfToken] = useState("");
     const [error, setError] = useState("");
+    const navigate = useNavigate();
 
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-    console.log("BACKEND_URL:", BACKEND_URL); // controlla che stampi l'URL corretto
 
-    // Recupera token CSRF dal server
+    // --- Redirect se già loggato ---
+    useEffect(() => {
+        const user = sessionStorage.getItem("user");
+        try {
+            const parsedUser = JSON.parse(user);
+            if (parsedUser && parsedUser.username) {
+                sessionStorage.setItem("playLogoAnimation", "true");
+                navigate("/");
+            }
+        } catch {
+            console.log("Utente non loggato o sessione malformata");
+        }
+    }, [navigate]);
+
+    // --- Recupera token CSRF ---
     useEffect(() => {
         fetch(`${BACKEND_URL}/csrf-token`, { credentials: "include" })
             .then((res) => res.json())
-            .then((data) => {
-                console.log("CSRF ricevuto:", data.csrfToken);
-                setCsrfToken(data.csrfToken);
-            })
+            .then((data) => setCsrfToken(data.csrfToken))
             .catch((err) => console.error("Errore CSRF:", err));
-    }, []);
+    }, [BACKEND_URL]);
 
+    // --- Animazione logo + redirect ---
+    const startLogoTransition = (redirectUrl) => {
+        const logo = document.querySelector(`.${styles.logo}`);
+        if (logo) {
+            logo.classList.add(styles.logoTransition);
+            setTimeout(() => navigate(redirectUrl), 1200);
+        } else {
+            navigate(redirectUrl);
+        }
+    };
+
+    // --- Ottieni JWT ---
+    const fetchAuthToken = async () => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/auth-token`, {
+                credentials: "include",
+            });
+            if (res.ok) {
+                const data = await res.json();
+                sessionStorage.setItem("token", data.token);
+            }
+        } catch (err) {
+            console.error("Errore fetchAuthToken:", err);
+        }
+    };
+
+    // --- Login tradizionale ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -28,7 +69,7 @@ export default function Login({ onLogin }) {
                 credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
-                    "csrf-token": csrfToken, // token inviato nell'header
+                    "csrf-token": csrfToken,
                 },
                 body: JSON.stringify({ username, password }),
             });
@@ -38,6 +79,8 @@ export default function Login({ onLogin }) {
                 sessionStorage.setItem("user", JSON.stringify(data.user));
                 await fetchAuthToken();
                 onLogin(data.user);
+                sessionStorage.setItem("playLogoAnimation", "true");
+                startLogoTransition("/");
             } else {
                 setError(data.message);
             }
@@ -47,59 +90,64 @@ export default function Login({ onLogin }) {
         }
     };
 
-    async function fetchAuthToken() {
-        try {
-            const res = await fetch(`${BACKEND_URL}/api/auth-token`, { credentials: "include" });
-            if (res.ok) {
-                const data = await res.json();
-                sessionStorage.setItem("token", data.token);
-            }
-        } catch (err) {
-            console.error("Errore fetchAuthToken:", err);
-        }
-    }
-
-    // Login Google
+    // --- Login Google ---
     useEffect(() => {
-        window.handleCredentialResponse = async (response) => {
-            try {
-                const res = await fetch(`${BACKEND_URL}/auth/google`, {
-                    method: "POST",
-                    credentials: "include",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ id_token: response.credential }),
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        document.body.appendChild(script);
+
+        script.onload = () => {
+            if (!window.google) return;
+
+            window.google.accounts.id.initialize({
+                client_id:
+                    "42592859457-ausft7g5gohk7mf96st2047ul9rk8o0v.apps.googleusercontent.com",
+                callback: async (response) => {
+                    try {
+                        const res = await fetch(`${BACKEND_URL}/auth/google`, {
+                            method: "POST",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ id_token: response.credential }),
+                        });
+
+                        if (!res.ok) throw new Error("Errore login Google");
+                        const data = await res.json();
+                        sessionStorage.setItem("user", JSON.stringify(data.user));
+                        await fetchAuthToken();
+                        onLogin(data.user);
+                        sessionStorage.setItem("playLogoAnimation", "true");
+                        startLogoTransition("/");
+                    } catch (err) {
+                        console.error(err);
+                        alert("Errore durante login Google");
+                    }
+                },
+            });
+
+            const buttonDiv = document.getElementById("googleSignInButton");
+            if (buttonDiv) {
+                window.google.accounts.id.renderButton(buttonDiv, {
+                    theme: "outline",
+                    size: "large",
                 });
-                if (!res.ok) throw new Error("Errore login Google");
-                const data = await res.json();
-                sessionStorage.setItem("user", JSON.stringify(data.user));
-                await fetchAuthToken();
-                onLogin(data.user);
-            } catch (err) {
-                console.error(err);
-                alert("Errore durante login Google");
+                window.google.accounts.id.prompt();
             }
         };
 
-        if (window.google) {
-            window.google.accounts.id.initialize({
-                client_id: "42592859457-ausft7g5gohk7mf96st2047ul9rk8o0v.apps.googleusercontent.com",
-                callback: window.handleCredentialResponse,
-            });
-            window.google.accounts.id.renderButton(
-                document.getElementById("googleSignInButton"),
-                { theme: "outline", size: "large" }
-            );
-            window.google.accounts.id.prompt();
-        }
-    }, [onLogin]);
+        return () => document.body.removeChild(script);
+    }, [onLogin, BACKEND_URL]);
 
     return (
-        <div className="login-page" style={{ textAlign: "center", padding: "20px" }}>
+        <div className={styles.loginPage}>
             <header>
-                <img src="/logobepoli.png" alt="Logo" className="logo" />
+                <img src="/logobepoli.png" alt="Logo" className={styles.logo} />
             </header>
-            <form onSubmit={handleSubmit} style={{ maxWidth: "400px", margin: "20px auto" }}>
-                <h2>BePoli</h2>
+
+            <form onSubmit={handleSubmit} className={styles.formBox}>
+                <h2 className={styles.scritta}>BePoli</h2>
                 <input
                     type="text"
                     placeholder="Username"
@@ -116,11 +164,14 @@ export default function Login({ onLogin }) {
                 />
                 <button type="submit">Login</button>
                 {error && <p style={{ color: "red" }}>{error}</p>}
+                <div className={styles.loginLink}>
+                    <span>Non hai un account?</span>
+                    <Link to="/register">Iscriviti</Link>
+                </div>
             </form>
-            <div>
-                <span>oppure</span>
-                <div id="googleSignInButton" style={{ marginTop: "10px" }}></div>
-            </div>
+
+            <span>oppure</span>
+            <div id="googleSignInButton" className={styles.googleButton}></div>
         </div>
     );
 }

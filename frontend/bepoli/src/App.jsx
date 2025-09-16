@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 
 import Home from "./pages/Home";
 import Login from "./components/Login.jsx";
+import Register from "./components/Register.jsx"; // 👈 aggiunto
 import SearchPage from "./pages/SearchPage.jsx";
 import Profile from "./pages/ProfilePage.jsx";
 import ModificaProfilo from "./pages/ModificaProfilo.jsx"; // 👈 aggiunto
@@ -31,6 +32,12 @@ export default function App() {
                 <Route
                     path="/login"
                     element={user ? <Navigate to="/" /> : <Login onLogin={setUser} />}
+                />
+
+                {/* Registrazione */}
+                <Route
+                    path="/register"
+                    element={user ? <Navigate to="/" /> : <Register />}
                 />
 
                 {/* Home protetta */}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import PostCard from "./PostCard";
+import styles from "../assets/Feed.module.css";
 
 export default function Feed({ location }) {
     const [posts, setPosts] = useState([]);
@@ -9,7 +10,6 @@ export default function Feed({ location }) {
 
     const pageSize = 10;
 
-    // Funzione per caricare post filtrati
     const caricaPost = async (page = 1) => {
         if (loading || finished) return;
         setLoading(true);
@@ -19,8 +19,6 @@ export default function Feed({ location }) {
                 (location || "Fuori dalle aree conosciute").replace(/^Vicino a:\s*/, "").trim()
             );
 
-            console.log("Richiesta post per location:", locationParam);
-
             const res = await fetch(
                 `/api/posts?page=${page}&pageSize=${pageSize}&location=${locationParam}`,
                 { credentials: "include" }
@@ -29,12 +27,9 @@ export default function Feed({ location }) {
             if (!res.ok) throw new Error(`Errore ${res.status}`);
             const data = await res.json();
 
-            // Se è la prima pagina sostituisci, altrimenti aggiungi
             setPosts(page === 1 ? data : [...posts, ...data]);
             setCurrentPage(page);
             setFinished(data.length < pageSize);
-
-            console.log(`Post caricati (${data.length}):`, data);
         } catch (err) {
             console.error("Errore nel caricamento post:", err);
         } finally {
@@ -42,7 +37,6 @@ export default function Feed({ location }) {
         }
     };
 
-    // Gestione like
     const handleLike = async (postId, index) => {
         try {
             const res = await fetch(`/api/posts/${postId}/like`, { method: "POST", credentials: "include" });
@@ -54,7 +48,6 @@ export default function Feed({ location }) {
         }
     };
 
-    // Gestione commenti
     const handleComment = async (postId, index, text) => {
         if (!text.trim()) return;
 
@@ -80,14 +73,13 @@ export default function Feed({ location }) {
         }
     };
 
-    // Aggiorna il feed ogni volta che cambia la location
     useEffect(() => {
-        setFinished(false); // resetta stato "finito" quando cambia location
+        setFinished(false);
         caricaPost(1);
     }, [location]);
 
     return (
-        <main className="feed-container">
+        <main className={styles.feedContainer}>
             {posts.map((post, i) => (
                 <PostCard
                     key={post._id}
@@ -99,7 +91,11 @@ export default function Feed({ location }) {
             ))}
 
             {!finished && (
-                <button onClick={() => caricaPost(currentPage + 1)} disabled={loading}>
+                <button
+                    className={styles.loadMoreButton}
+                    onClick={() => caricaPost(currentPage + 1)}
+                    disabled={loading}
+                >
                     {loading ? "Caricamento..." : "Carica altri"}
                 </button>
             )}
