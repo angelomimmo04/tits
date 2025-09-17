@@ -11,7 +11,7 @@ const csrf = require("csurf");
 const cookieParser = require("cookie-parser");
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
-const compression = require("compression");
+
 const sharp = require("sharp");
 
 const app = express();
@@ -46,7 +46,7 @@ app.use(
 );
 
 // ===== Core middleware =====
-app.use(compression());
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
