@@ -6,7 +6,7 @@ const bcrypt = require("bcrypt");
 const path = require("path");
 const multer = require("multer");
 const session = require("express-session");
-const csrf = require("csurf");
+// const csrf = require("csurf"); // Rimosso
 const cookieParser = require("cookie-parser");
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
@@ -27,13 +27,14 @@ const app = express();
 const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://be-poli-pxil.onrender.com",
-    "https://bepoli.onrender.com",
+    "https://be-poli-pxil.onrender.com", // frontend prod
+    "https://bepoli.onrender.com",        // backend (kept)
 ];
 
 app.use(
     cors({
         origin: function (origin, callback) {
+            // Allow non-browser tools (no origin) as well
             if (!origin) return callback(null, true);
             if (allowedOrigins.indexOf(origin) === -1)
                 return callback(
@@ -42,13 +43,14 @@ app.use(
                 );
             return callback(null, true);
         },
-        credentials: true,
+        credentials: true, // importante per inviare cookie cross-site
     })
 );
 
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 app.use(
     session({
         secret: process.env.SESSION_SECRET || "dev-secret",
@@ -56,19 +58,13 @@ app.use(
         saveUninitialized: true,
         rolling: true,
         cookie: {
-            maxAge: 1000 * 60 * 30,
+            maxAge: 1000 * 60 * 30, // 30 minuti
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production", // in prod deve essere true (https)
+            sameSite: "none", // permette cookie cross-site tra frontend e backend su domini diversi
         },
     })
 );
-
-// --- CSRF Protection ---
-const csrfProtection = csrf({
-    cookie: true,
-    value: (req) => req.headers["csrf-token"], // 👈 legge dall’header
-});
 
 // --- Database ---
 mongoose
@@ -136,11 +132,9 @@ function checkFingerprint(req, res, next) {
 }
 
 // --- Rotte Auth ---
-app.get("/csrf-token", csrfProtection, (req, res) =>
-    res.json({ csrfToken: req.csrfToken() })
-);
+// Nota: /csrf-token rimossa (csurf disabilitato)
 
-app.post("/register", csrfProtection, async (req, res) => {
+app.post("/register", async (req, res) => {
     const { nome, username, password } = req.body;
     if (!nome || !username || !password)
         return res.status(400).json({ message: "Dati mancanti" });
@@ -159,12 +153,13 @@ app.post("/register", csrfProtection, async (req, res) => {
         });
         await nuovoUtente.save();
         res.status(201).json({ message: "Registrazione completata" });
-    } catch {
+    } catch (err) {
+        console.error("Errore register:", err);
         res.status(500).json({ message: "Errore server" });
     }
 });
 
-app.post("/login", csrfProtection, async (req, res) => {
+app.post("/login", async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password)
         return res.status(400).json({ message: "Dati mancanti" });
@@ -183,15 +178,15 @@ app.post("/login", csrfProtection, async (req, res) => {
         };
         req.session.fingerprint = getFingerprint(req);
         res.json({ message: "Login riuscito", user: req.session.user });
-    } catch {
+    } catch (err) {
+        console.error("Errore login:", err);
         res.status(500).json({ message: "Errore server" });
     }
 });
 
 app.post("/auth/google", async (req, res) => {
     const { id_token } = req.body;
-    if (!id_token)
-        return res.status(400).json({ message: "Token mancante" });
+    if (!id_token) return res.status(400).json({ message: "Token mancante" });
 
     try {
         const ticket = await client.verifyIdToken({
@@ -220,15 +215,24 @@ app.post("/auth/google", async (req, res) => {
         req.session.fingerprint = getFingerprint(req);
 
         res.json({ message: "Login Google effettuato", user: req.session.user });
-    } catch {
+    } catch (err) {
+        console.error("Errore auth/google:", err);
         res.status(401).json({ message: "Token non valido" });
     }
 });
 
-app.post("/logout", checkFingerprint, csrfProtection, (req, res) => {
+app.post("/logout", checkFingerprint, (req, res) => {
     req.session.destroy((err) => {
-        if (err) return res.status(500).json({ message: "Errore logout" });
-        res.clearCookie("connect.sid");
+        if (err) {
+            console.error("Errore logout:", err);
+            return res.status(500).json({ message: "Errore logout" });
+        }
+        // clear cookie (nome di default connect.sid) — invierà Set-Cookie con expires in passato
+        res.clearCookie("connect.sid", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "none",
+        });
         res.json({ message: "Logout effettuato" });
     });
 });
@@ -244,37 +248,6 @@ app.get("/api/auth-token", checkFingerprint, (req, res) => {
     });
     res.json({ token });
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // --- Utenti ---
 app.get("/api/user", checkFingerprint, async (req, res) => {
@@ -292,7 +265,8 @@ app.get("/api/user", checkFingerprint, async (req, res) => {
             followersCount: user.followers.length,
             followingCount: user.following.length,
         });
-    } catch {
+    } catch (err) {
+        console.error("Errore /api/user:", err);
         res.status(500).json({ message: "Errore server" });
     }
 });
@@ -300,12 +274,10 @@ app.get("/api/user", checkFingerprint, async (req, res) => {
 app.post(
     "/api/update-profile",
     checkFingerprint,
-    csrfProtection,
     upload.single("profilePic"),
     async (req, res) => {
         const userId = req.session.user?.id;
-        if (!userId)
-            return res.status(401).json({ message: "Non autorizzato" });
+        if (!userId) return res.status(401).json({ message: "Non autorizzato" });
 
         const updateData = {};
         if (req.body.bio) updateData.bio = req.body.bio;
@@ -347,7 +319,8 @@ app.get("/api/user-photo/:userId", async (req, res) => {
 
         res.contentType(user.profilePic.contentType);
         res.send(user.profilePic.data);
-    } catch {
+    } catch (err) {
+        console.error("Errore user-photo:", err);
         res.status(500).send("Errore immagine utente");
     }
 });
@@ -364,7 +337,8 @@ app.get("/api/recent-users", checkFingerprint, async (req, res) => {
             profilePicUrl: `/api/user-photo/${u._id}`,
         }));
         res.json(recenti);
-    } catch {
+    } catch (err) {
+        console.error("Errore recent-users:", err);
         res.status(500).json({ message: "Errore caricamento recenti" });
     }
 });
@@ -397,15 +371,11 @@ app.get("/api/search-users", checkFingerprint, async (req, res) => {
             })),
             totalCount,
         });
-    } catch {
+    } catch (err) {
+        console.error("Errore search-users:", err);
         res.status(500).json({ message: "Errore ricerca" });
     }
 });
-
-
-
-
-
 
 // Lista follower
 app.get("/api/user/:id/followers", checkFingerprint, async (req, res) => {
@@ -441,7 +411,6 @@ app.get("/api/user/:id/followers", checkFingerprint, async (req, res) => {
 
 // Lista seguiti
 app.get("/api/user/:id/following", checkFingerprint, async (req, res) => {
-    //app.get("/api/user/:id/following", async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -472,29 +441,6 @@ app.get("/api/user/:id/following", checkFingerprint, async (req, res) => {
     }
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Dati pubblici di un utente specifico
 app.get("/api/user/:id", checkFingerprint, async (req, res) => {
     try {
@@ -511,14 +457,11 @@ app.get("/api/user/:id", checkFingerprint, async (req, res) => {
             followersCount: user.followers.length,
             followingCount: user.following.length,
         });
-    } catch {
+    } catch (err) {
+        console.error("Errore /api/user/:id", err);
         res.status(500).json({ message: "Errore server" });
     }
 });
-
-
-
-
 
 app.post("/api/visit-user/:id", checkFingerprint, async (req, res) => {
     const userId = req.session.user.id;
@@ -538,7 +481,8 @@ app.post("/api/visit-user/:id", checkFingerprint, async (req, res) => {
 
         await utente.save();
         res.json({ message: "Utente salvato come visitato" });
-    } catch {
+    } catch (err) {
+        console.error("Errore visit-user:", err);
         res.status(500).json({ message: "Errore server" });
     }
 });
@@ -573,7 +517,8 @@ app.post("/api/follow/:id", checkFingerprint, async (req, res) => {
             followersCount: target.followers.length,
             followingCount: follower.following.length,
         });
-    } catch {
+    } catch (err) {
+        console.error("Errore follow:", err);
         res.status(500).json({ message: "Errore follow" });
     }
 });
@@ -596,7 +541,8 @@ app.get("/api/follow-info/:id", checkFingerprint, async (req, res) => {
             followingCount: target.following.length,
             isFollowing,
         });
-    } catch {
+    } catch (err) {
+        console.error("Errore follow-info:", err);
         res.status(500).json({ message: "Errore follow-info" });
     }
 });
@@ -617,7 +563,8 @@ app.post("/api/posts", checkFingerprint, upload.single("image"), async (req, res
         });
         await newPost.save();
         res.status(201).json(newPost);
-    } catch {
+    } catch (err) {
+        console.error("Errore create post:", err);
         res.status(500).json({ message: "Errore del server" });
     }
 });
@@ -659,7 +606,8 @@ app.get("/api/posts", async (req, res) => {
                 comments: post.comments.length,
             }))
         );
-    } catch {
+    } catch (err) {
+        console.error("Errore get posts:", err);
         res.status(500).json({ message: "Errore caricamento post" });
     }
 });
@@ -670,7 +618,8 @@ app.get("/api/post-image/:id", async (req, res) => {
         if (!post?.image?.data) return res.status(404).send("Nessuna immagine");
         res.contentType(post.image.contentType);
         res.send(post.image.data);
-    } catch {
+    } catch (err) {
+        console.error("Errore post-image:", err);
         res.status(500).send("Errore immagine");
     }
 });
@@ -699,33 +648,11 @@ app.get("/api/user/:id/posts", async (req, res) => {
                 comments: post.comments.length,
             }))
         );
-    } catch {
+    } catch (err) {
+        console.error("Errore user posts:", err);
         res.status(500).json({ message: "Errore caricamento post utente" });
     }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // --- SPA & Assets ---
 app.use("/assets", express.static(path.join(distPath, "assets")));
@@ -734,8 +661,7 @@ app.use(express.static(distPath));
 app.get("/api/hello", (req, res) => res.json({ message: "Hello World" }));
 
 app.use((req, res, next) => {
-    if (req.path.startsWith("/api") || req.path.includes("."))
-        return next();
+    if (req.path.startsWith("/api") || req.path.includes(".")) return next();
     res.sendFile(path.join(distPath, "index.html"));
 });
 
